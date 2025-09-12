@@ -1,0 +1,34 @@
+{%- for name, enum in enums %}
+{{name}} = {{enum}}
+{%- endfor %}
+# original name {{name}}
+class {{model}}(Base):
+    {% if abstract %}__abstract__ = True{% endif -%}
+    {% if wt %}__tablename__ = "{{name}}"{% endif %}
+{% for c in columns %}
+    {% if c.column_name != c.name -%}
+    {{c.column_name}}: Mapped[{{c.pytype}}] = mapped_column("{{c.name}}", {{c.type}}
+                                {%- if not c.nullable %}, nullable=False{% endif %}
+                                {%- if c.index %}, index=True{%- endif %}
+                                {%- if c.unique %}, unique=True{% endif %}
+                                {%- if c.pk %}, primary_key=True{% endif %}
+                                {%- if c.server_default %}, server_default={{c.server_default}}{%endif%})
+    {%- else -%}
+    {{c.column_name}}: Mapped[{{c.pytype}}] = mapped_column({{c.type}}
+                                {%- if not c.nullable %}, nullable=False{% endif %}
+                                {%- if c.index %}, index=True{% endif %}
+                                {%- if c.unique %}, unique=True{% endif %}
+                                {%- if c.pk %}, primary_key=True{% endif %}
+                                {%- if c.server_default %}, server_default={{c.server_default}}{%endif%})
+    {%- endif %}
+{%- endfor %}
+
+    {% if not indexes %}
+    __table_args__ = dict(mysql_engine='MYISAM',mysql_charset='{{charset}}')
+    {%- else -%}
+    __table_args__ = (
+        {%- for c in indexes %}
+                    Index("{{ c.name }}",{% for col in c.columns %} "{{col.name}}",  {% endfor %} unique={{c.unique}}),
+        {%- endfor %}
+                        ) + (dict(mysql_engine='MYISAM',mysql_charset='{{charset}}'),)
+    {% endif %}

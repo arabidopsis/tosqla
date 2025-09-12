@@ -1,0 +1,19 @@
+{% for i in pyimports %}
+{{i}}
+{% endfor %}
+{%- if imports | length > 0 %}
+from sqlalchemy import {% for name in imports -%}
+{{name}}{% if not loop.last %}, {%endif%}
+{%- endfor %}
+{% endif %}
+{%- if mysql | length > 0 %}
+from sqlalchemy.dialects.mysql import {% for name in mysql -%}
+{{name}}{% if not loop.last %}, {%endif%}
+{%- endfor %}
+{% endif %}
+from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import mapped_column
+
+class Base(DeclarativeBase):
+    pass

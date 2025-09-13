@@ -1,33 +1,44 @@
-from pathlib import Path
+from __future__ import annotations
+
 import re
 import sys
 from datetime import datetime
-from typing import Any, TextIO
+from pathlib import Path
+from typing import Any
+from typing import IO
+from typing import NotRequired
+from typing import TypedDict
+
 import click
-from jinja2 import Environment, FileSystemLoader
-from sqlalchemy import (
-    BINARY,
-    BLOB,
-    CHAR,
-    DECIMAL,
-    JSON,
-    TIMESTAMP,
-    Column,
-    Date,
-    DateTime,
-    Enum,
-    Float,
-    Index,
-    Integer,
-    MetaData,
-    String,
-    Table,
-    Text,
-    create_engine,
-)
-from sqlalchemy.dialects.mysql import DOUBLE, LONGBLOB, LONGTEXT, MEDIUMBLOB, MEDIUMTEXT
+from jinja2 import Environment
+from jinja2 import FileSystemLoader
+from sqlalchemy import BINARY
+from sqlalchemy import BLOB
+from sqlalchemy import CHAR
+from sqlalchemy import Column
+from sqlalchemy import create_engine
+from sqlalchemy import Date
+from sqlalchemy import DateTime
+from sqlalchemy import DECIMAL
+from sqlalchemy import Enum
+from sqlalchemy import Float
+from sqlalchemy import Index
+from sqlalchemy import Integer
+from sqlalchemy import JSON
+from sqlalchemy import MetaData
+from sqlalchemy import String
+from sqlalchemy import Table
+from sqlalchemy import Text
+from sqlalchemy import TIMESTAMP
+from sqlalchemy.dialects.mysql import DOUBLE
+from sqlalchemy.dialects.mysql import LONGBLOB
+from sqlalchemy.dialects.mysql import LONGTEXT
+from sqlalchemy.dialects.mysql import MEDIUMBLOB
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.dialects.mysql import SET as Set
-from sqlalchemy.dialects.mysql import TEXT, TINYTEXT, YEAR
+from sqlalchemy.dialects.mysql import TEXT
+from sqlalchemy.dialects.mysql import TINYTEXT
+from sqlalchemy.dialects.mysql import YEAR
 
 ENV = Environment(loader=FileSystemLoader(Path(__file__).parent / "templates"))
 
@@ -61,7 +72,32 @@ Number = {
 }
 
 
-def column_name(name):
+class ColDict(TypedDict):
+    name: str
+    type: str
+    pytype: str
+    otype: str
+    nullable: bool
+    pk: Column
+    server_default: str | None
+    index: bool
+    unique: bool
+    column_name: str
+    max_length: NotRequired[int]
+
+
+class TableDict(TypedDict):
+    model: str
+    name: str
+    columns: list[ColDict]
+    enums: list[tuple[str, str]]
+    charset: str
+    indexes: set[str]
+    abstract: bool
+    with_tablename: bool
+
+
+def column_name(name: str) -> str:
     cname = CNAMES.sub("_", name)
     cname = NAMES.get(cname, cname)
     if cname[0] in Number:
@@ -76,23 +112,22 @@ class ModelMaker:
     def column_name(self, name: str) -> str:
         return column_name(name)
 
-    # pylint: disable=too-many-statements
     def convert_table(
-        self, table: Table
-    ) -> tuple[dict[str, Any], set[str], set[str], set[str]]:  # noqa:
-        # pylint: disable=too-many-branches
+        self,
+        table: Table,
+    ) -> tuple[TableDict, set[str], set[str], set[str]]:
         mysql: set[str] = set()
         imports: set[str] = set()
         pyimports: set[str] = set()
 
-        columns = []
-        enums = {}
-        sets = {}
+        columns: list[ColDict] = []
+        enums: dict[frozenset[str], str] = {}
+        sets: dict[tuple[str, ...], str] = {}
         # indexes = insp.get_indexes(table.name) if insp else []
         indexes = table.indexes
 
         charset = table.dialect_options["mysql"]["default charset"]
-
+        c: Column
         for c in table.columns:
             typ = c.type
             atyp = str(typ)
@@ -197,7 +232,7 @@ class ModelMaker:
                 raise RuntimeError(f'unknown field "{table.name}.{c.name}" {c.type}')
             if c.nullable:
                 pytype = pytype + " | None"
-            d = dict(
+            d = ColDict(
                 name=c.name,
                 type=atyp,
                 pytype=pytype,
@@ -205,10 +240,11 @@ class ModelMaker:
                 nullable=c.nullable,
                 pk=c.primary_key,
                 server_default=server_default,
+                index=c.index,
+                unique=c.unique,
+                column_name=self.column_name(c.name),
             )
-            d["index"] = c.index
-            d["unique"] = c.unique
-            d["column_name"] = self.column_name(c.name)
+
             if hasattr(c.type, "length"):
                 d["max_length"] = c.type.length
             columns.append(d)
@@ -220,9 +256,9 @@ class ModelMaker:
                         indexes.remove(i)
                         break
 
-        elist = []
-        for e, name in enums.items():
-            args = ", ".join(f'"{v}"' for v in e)
+        elist: list[tuple[str, str]] = []
+        for fs, name in enums.items():
+            args = ", ".join(f'"{v}"' for v in fs)
             styp = f"Enum({args})"
             elist.append((name, styp))
         for e, name in sets.items():
@@ -233,13 +269,15 @@ class ModelMaker:
         if indexes:
             imports.add("Index")
 
-        data = dict(
+        data = TableDict(
             model=self.pascal_case(table.name),
             name=table.name,
             columns=columns,
             enums=elist,
             charset=charset,
             indexes=indexes,
+            abstract=False,
+            with_tablename=True,
         )
 
         return data, imports, mysql, pyimports
@@ -251,15 +289,15 @@ class ModelMaker:
         self,
         tables: list[Table],
         *,
-        out: TextIO = sys.stdout,
+        out: IO[str] = sys.stdout,
         abstract: bool = False,
     ) -> None:
         mysql = set()
         imports = set()
         pyimports = set()
-        ret = []
+        ret: list[str] = []
         # insp = inspect(engine) if engine else None
-        enums_seen = set()
+        enums_seen: set[tuple[str, str]] = set()
         for table in tables:
             data, i, m, pi = self.convert_table(table)
             imports |= i
@@ -275,8 +313,8 @@ class ModelMaker:
             data.update(
                 dict(
                     abstract=abstract,
-                    wt=self.with_tablename,
-                )
+                    with_tablename=self.with_tablename,
+                ),
             )
             txt = self.render_table(data)
 
@@ -291,11 +329,10 @@ class ModelMaker:
             out=out,
         )
 
-    def render_table(self, data: dict[str, Any]) -> str:
+    def render_table(self, data: TableDict) -> str:
         txt = ENV.get_template("body.py.tmplt").render(**data)
         return txt
 
-    # pylint: disable=too-many-arguments
     def gen_tables(
         self,
         tables: list[Table],
@@ -303,7 +340,7 @@ class ModelMaker:
         imports: set[str],
         mysql: set[str],
         pyimports: set[str],
-        out: TextIO = sys.stdout,
+        out: IO[str] = sys.stdout,
     ) -> None:
         print(f"# generated by {__file__} on {datetime.now()}", file=out)
         PyImports = ENV.get_template("imports.py.tmplt")
@@ -316,7 +353,11 @@ class ModelMaker:
             print(t, file=out)
 
     def mkcopy(
-        self, table: Table, name: str, meta: MetaData, pkname: str = "id"
+        self,
+        table: Table,
+        name: str,
+        meta: MetaData,
+        pkname: str = "id",
     ) -> Table:
         indexes = table.indexes
         names = {c.key for c in table.c}
@@ -338,13 +379,17 @@ class ModelMaker:
             for i in indexes:
                 # print(i, dir(i))
                 args.append(
-                    Index(i.name, *(c.name for c in i.columns), unique=i.unique)
+                    Index(i.name, *(c.name for c in i.columns), unique=i.unique),
                 )
         # args.append(i)
         # print('HERE', i)
 
         return Table(
-            name, meta, Column(pkname, Integer, primary_key=True), *args, **table.kwargs
+            name,
+            meta,
+            Column(pkname, Integer, primary_key=True),
+            *args,
+            **table.kwargs,
         )
 
 

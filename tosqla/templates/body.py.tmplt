@@ -8,19 +8,14 @@ class {{model}}(Base):
 {% for c in columns %}
     {% if c.column_name != c.name -%}
     {{c.column_name}}: Mapped[{{c.pytype}}] = mapped_column("{{c.name}}", {{c.type}}
-                                {%- if not c.nullable %}, nullable=False{% endif %}
-                                {%- if c.index %}, index=True{%- endif %}
-                                {%- if c.unique %}, unique=True{% endif %}
-                                {%- if c.pk %}, primary_key=True{% endif %}
-                                {%- if c.server_default %}, server_default={{c.server_default}}{%endif%})
     {%- else -%}
     {{c.column_name}}: Mapped[{{c.pytype}}] = mapped_column({{c.type}}
+    {%- endif %}
                                 {%- if not c.nullable %}, nullable=False{% endif %}
                                 {%- if c.index %}, index=True{% endif %}
                                 {%- if c.unique %}, unique=True{% endif %}
                                 {%- if c.pk %}, primary_key=True{% endif %}
-                                {%- if c.server_default %}, server_default={{c.server_default}}{%endif%})
-    {%- endif %}
+                                {%- if c.server_default %}, server_default={{c.server_default}}{% endif %})
 {%- endfor %}
 
     {% if not indexes %}

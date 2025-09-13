@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from typing import IO
 from typing import NotRequired
+from typing import Sequence
 from typing import TypedDict
 
 import click
@@ -290,7 +291,7 @@ class ModelMaker:
 
     def run_tables(
         self,
-        tables: list[Table],
+        tables: Sequence[Table],
         *,
         out: IO[str] = sys.stdout,
         abstract: bool = False,
@@ -338,7 +339,7 @@ class ModelMaker:
 
     def gen_tables(
         self,
-        tables: list[Table],
+        tables: Sequence[Table],
         models: list[str],
         imports: set[str],
         mysql: set[str],
@@ -413,7 +414,13 @@ def cli():
     help="output file or stdout",
 )
 @click.argument("tables", nargs=-1)
-def tosqla(host, out, abstract, tables, with_tablename):
+def tosqla(
+    host: str | None,
+    out: IO[str],
+    abstract: bool,
+    tables: Sequence[str],
+    with_tablename: bool,
+):
     """Render tables into sqlalchemy.ext.declarative classes."""
     if not host:
         raise click.BadParameter("please specify --host", param_hint="host")
@@ -448,7 +455,14 @@ def tosqla(host, out, abstract, tables, with_tablename):
 )
 @click.option("--pk", default="id", help="name of new id column", show_default=True)
 @click.argument("tables", nargs=-1)
-def backups(host, postfix, out, pk, abstract, tables):
+def backups(
+    host: str | None,
+    postfix: str | None,
+    out: IO[str],
+    pk: str,
+    abstract: bool,
+    tables: Sequence[str],
+):
     """Make a table that's a "backup" of another."""
     if not host:
         raise RuntimeError("please specify --host")
@@ -462,13 +476,13 @@ def backups(host, postfix, out, pk, abstract, tables):
         tables = meta.tables.keys()
     # insp = inspect(engine)
 
-    tables = [meta.tables[t] for t in sorted(tables)]
+    ttables = [meta.tables[t] for t in sorted(tables)]
     mm = ModelMaker(env=get_env())
     # indexes = [insp.get_indexes(t.name) for t in tables]
-    tables = [mm.mkcopy(t, t.name + postfix, meta, pk) for t in tables]
+    ttables = [mm.mkcopy(t, t.name + postfix, meta, pk) for t in ttables]
     # print(indexes)
 
-    mm.run_tables(tables, out=out, abstract=abstract)
+    mm.run_tables(ttables, out=out, abstract=abstract)
 
 
 if __name__ == "__main__":

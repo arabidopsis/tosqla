@@ -80,11 +80,11 @@ class ColDict(TypedDict):
     type: str
     pytype: str
     otype: str
-    nullable: bool
-    pk: Column
+    nullable: bool | None
+    pk: bool
     server_default: str | None
-    index: bool
-    unique: bool
+    index: bool | None
+    unique: bool | None
     column_name: str
     max_length: NotRequired[int]
 
@@ -95,7 +95,7 @@ class TableDict(TypedDict):
     columns: list[ColDict]
     enums: list[tuple[str, str]]
     charset: str
-    indexes: set[str]
+    indexes: set[Index]
     abstract: bool
     with_tablename: bool
 
@@ -187,10 +187,11 @@ class ModelMaker:
             elif isinstance(typ, (Text, TEXT, MEDIUMTEXT, TINYTEXT, LONGTEXT)):
                 name = typ.__class__.__name__
                 usecharset = False
-                if hasattr(typ, "charset") and typ.charset:
-                    if typ.charset != charset:
+                cset = getattr(typ, "charset", None)
+                if cset is not None:
+                    if cset != charset:
                         usecharset = True
-                        atyp = f'{name}(charset="{typ.charset}")'
+                        atyp = f'{name}(charset="{cset}")'
                     else:
                         atyp = f"{name}"
                 else:
@@ -204,8 +205,9 @@ class ModelMaker:
 
             elif isinstance(typ, (String, CHAR)):
                 name = typ.__class__.__name__
-                if hasattr(typ, "charset") and typ.charset and typ.charset != charset:
-                    atyp = f'{name}({typ.length}, charset="{typ.charset}")'
+                cset = getattr(typ, "charset", None)
+                if cset is not None and cset != charset:
+                    atyp = f'{name}({typ.length}, charset="{cset}")'
                     mysql.add(name)
                 else:
                     if name == "VARCHAR":
@@ -250,7 +252,7 @@ class ModelMaker:
             )
 
             if hasattr(c.type, "length"):
-                d["max_length"] = c.type.length
+                d["max_length"] = c.type.length  # type: ignore
             columns.append(d)
             for i in indexes:
                 if len(i.columns) == 1:
@@ -313,13 +315,9 @@ class ModelMaker:
                     e.append(k)
                 enums_seen.add(k)
             data["enums"] = e
+            data["abstract"] = abstract
+            data["with_tablename"] = self.with_tablename
 
-            data.update(
-                dict(
-                    abstract=abstract,
-                    with_tablename=self.with_tablename,
-                ),
-            )
             txt = self.render_table(data)
 
             ret.append(txt)
@@ -403,7 +401,6 @@ def cli():
 
 
 @cli.command()
-@click.option("--host", metavar="URL", required=True)
 @click.option("--abstract", is_flag=True, help="make classes abstract")
 @click.option("-w", "--with-tablename", is_flag=True, help="add __tablename__")
 @click.option(
@@ -413,29 +410,28 @@ def cli():
     default=sys.stdout,
     help="output file or stdout",
 )
+@click.argument("host", required=True)
 @click.argument("tables", nargs=-1)
 def tosqla(
-    host: str | None,
+    host: str,
     out: IO[str],
     abstract: bool,
     tables: Sequence[str],
     with_tablename: bool,
 ):
     """Render tables into sqlalchemy.ext.declarative classes."""
-    if not host:
-        raise click.BadParameter("please specify --host", param_hint="host")
     engine = create_engine(host)
     meta = MetaData()
     if tables:
         meta.reflect(only=tables, bind=engine)
     else:
         meta.reflect(bind=engine)
-        tables = meta.tables.keys()
+        tables = list(meta.tables.keys())
 
-    tables = [meta.tables[t] for t in sorted(tables)]
+    ttables = [meta.tables[t] for t in sorted(tables)]
 
     ModelMaker(env=get_env(), with_tablename=with_tablename).run_tables(
-        tables,
+        ttables,
         out=out,
         abstract=abstract,
     )
@@ -443,7 +439,6 @@ def tosqla(
 
 # pylint: disable=too-many-arguments
 @cli.command()
-@click.option("--host", metavar="URL")
 @click.option("--postfix", default="_backup", help="added postfix to new table name")
 @click.option("--abstract", is_flag=True, help="make classes abstract")
 @click.option(
@@ -454,9 +449,10 @@ def tosqla(
     help="output file or stdout",
 )
 @click.option("--pk", default="id", help="name of new id column", show_default=True)
+@click.argument("host", required=True)
 @click.argument("tables", nargs=-1)
 def backups(
-    host: str | None,
+    host: str,
     postfix: str | None,
     out: IO[str],
     pk: str,
@@ -464,8 +460,7 @@ def backups(
     tables: Sequence[str],
 ):
     """Make a table that's a "backup" of another."""
-    if not host:
-        raise RuntimeError("please specify --host")
+
     engine = create_engine(host)
     meta = MetaData()
 
@@ -473,11 +468,13 @@ def backups(
         meta.reflect(only=tables, bind=engine)
     else:
         meta.reflect(bind=engine)
-        tables = meta.tables.keys()
+        tables = list(meta.tables.keys())
     # insp = inspect(engine)
 
     ttables = [meta.tables[t] for t in sorted(tables)]
     mm = ModelMaker(env=get_env())
+    if postfix is None:
+        postfix = ""
     # indexes = [insp.get_indexes(t.name) for t in tables]
     ttables = [mm.mkcopy(t, t.name + postfix, meta, pk) for t in ttables]
     # print(indexes)

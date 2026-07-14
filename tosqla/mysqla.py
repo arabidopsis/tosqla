@@ -48,7 +48,7 @@ def get_env() -> Environment:
 
 
 def pascal_case(name: str) -> str:
-    name = NON_WORD.sub("_", name)
+    name = NON_WORD.sub("_", name.strip())
     if name[0] in Number:
         name = Number[name[0]] + name[1:]
     name = "".join(n[0].upper() + n[1:] for n in name.split("_"))
@@ -56,7 +56,23 @@ def pascal_case(name: str) -> str:
     if iskeyword(name):
         name = name + "_"
 
-    if name in {"Column", "Table", "Integer"}:
+    # avoid masking SQLAlchemy types
+    if name in {
+        "String",
+        "Enum",
+        "Integer",
+        "Float",
+        "Set",
+        "DateTime",
+        "Date",
+        "Text",
+        "JSON",
+        "Column",
+        "Table",
+        "Base",
+        "DeclarativeBase",
+        "Mapped",
+    }:
         name = name + "Class"
     return name
 
@@ -78,7 +94,7 @@ Number = {
 
 
 def column_name(name: str) -> str:
-    cname = NON_WORD.sub("_", name)
+    cname = NON_WORD.sub("_", name.strip())
     if iskeyword(cname):
         cname = cname + "_"
     if cname[0] in Number:
@@ -457,7 +473,10 @@ def models(
     """Render tables into sqlalchemy.ext.declarative classes."""
     if host.startswith("mysql://"):
         host = "mysql+pymysql://" + host[8:]
-    click.secho(f"# connecting to {host}", err=True)
+    # click.secho(f"# connecting to {host}", err=True)
+    if abstract:
+        without_tablename = True
+
     engine = create_engine(host)
     meta = MetaData()
     if tables:

@@ -435,6 +435,29 @@ class ModelMaker:
         )
 
 
+def connect_mysql(host: str, tables: Sequence[str] | None = None) -> list[Table]:
+    import sqlalchemy.exc
+
+    """Connect to a MySQL database."""
+    if host.startswith("mysql://"):
+        host = "mysql+pymysql://" + host[8:]
+    engine = create_engine(host)
+
+    meta = MetaData()
+
+    try:
+        if tables:
+            meta.reflect(only=tables, bind=engine)
+        else:
+            meta.reflect(bind=engine)
+            tables = list(meta.tables.keys())
+        return [meta.tables[t] for t in sorted(tables)]
+
+    except sqlalchemy.exc.OperationalError as e:
+        click.secho(f"Error connecting to {host}: {e}", err=True, fg="red")
+        raise click.Abort()
+
+
 @click.group()
 def cli():
     pass
@@ -471,22 +494,11 @@ def models(
     without_tablename: bool,
 ):
     """Render tables into sqlalchemy.ext.declarative classes."""
-    if host.startswith("mysql://"):
-        host = "mysql+pymysql://" + host[8:]
+
     # click.secho(f"# connecting to {host}", err=True)
     if abstract:
         without_tablename = True
-
-    engine = create_engine(host)
-    meta = MetaData()
-    if tables:
-        meta.reflect(only=tables, bind=engine)
-    else:
-        meta.reflect(bind=engine)
-        tables = list(meta.tables.keys())
-
-    ttables = [meta.tables[t] for t in sorted(tables)]
-
+    ttables = connect_mysql(host, tables)
     ModelMaker(
         env=get_env(),
         with_tablename=not without_tablename,
@@ -523,22 +535,12 @@ def backups(
 ):
     """Make a table that's a "backup" of another."""
 
-    engine = create_engine(host)
-    meta = MetaData()
-
-    if tables:
-        meta.reflect(only=tables, bind=engine)
-    else:
-        meta.reflect(bind=engine)
-        tables = list(meta.tables.keys())
-    # insp = inspect(engine)
-
-    ttables = [meta.tables[t] for t in sorted(tables)]
+    ttables = connect_mysql(host, tables)
     mm = ModelMaker(env=get_env(), engine=mysql_engine)
     if postfix is None:
         postfix = ""
     # indexes = [insp.get_indexes(t.name) for t in tables]
-    ttables = [mm.mkcopy(t, t.name + postfix, meta, pk) for t in ttables]
+    ttables = [mm.mkcopy(t, t.name + postfix, t.metadata, pk) for t in ttables]
     # print(indexes)
 
     mm.run_tables(ttables, out=out, abstract=abstract)

@@ -122,8 +122,8 @@ wheels = [
 ]
 
 [[package]]
-name = "tosqla"
-version = "0.1.3"
+name = "sqlamodels"
+version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "click" },

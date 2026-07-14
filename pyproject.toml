@@ -1,6 +1,6 @@
 [project]
-name = "tosqla"
-version = "0.1.3"
+name = "sqlamodels"
+version = "0.1.4"
 description = "generate sqlalchemy models from tables"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-tosqla = "tosqla.__main__:cli"
+sqlamodels = "sqlamodels.__main__:cli"
 
 [build-system]
 requires = ["hatchling"]

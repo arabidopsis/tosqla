@@ -1,13 +1,13 @@
 [project]
 name = "tosqla"
-version = "0.1.0"
+version = "0.1.2"
 description = "generate sqlalchemy models from tables"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "click>=8.2.1",
     "jinja2>=3.1.6",
-    "mysqlclient>=2.2.7",
+    "pymysql>=1.2.0,<2",
     "sqlalchemy>=2.0.43",
 ]
 

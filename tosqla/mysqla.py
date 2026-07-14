@@ -402,7 +402,7 @@ def cli():
 
 @cli.command()
 @click.option("--abstract", is_flag=True, help="make classes abstract")
-@click.option("-w", "--with-tablename", is_flag=True, help="add __tablename__")
+@click.option("-x", "--without-tablename", is_flag=True, help="don't add __tablename__")
 @click.option(
     "-o",
     "--out",
@@ -412,14 +412,16 @@ def cli():
 )
 @click.argument("host", required=True)
 @click.argument("tables", nargs=-1)
-def tosqla(
+def models(
     host: str,
     out: IO[str],
     abstract: bool,
     tables: Sequence[str],
-    with_tablename: bool,
+    without_tablename: bool,
 ):
     """Render tables into sqlalchemy.ext.declarative classes."""
+    if host.startswith("mysql://"):
+        host = "mysql+pymysql://" + host[8:]
     engine = create_engine(host)
     meta = MetaData()
     if tables:
@@ -430,14 +432,13 @@ def tosqla(
 
     ttables = [meta.tables[t] for t in sorted(tables)]
 
-    ModelMaker(env=get_env(), with_tablename=with_tablename).run_tables(
+    ModelMaker(env=get_env(), with_tablename=not without_tablename).run_tables(
         ttables,
         out=out,
         abstract=abstract,
     )
 
 
-# pylint: disable=too-many-arguments
 @cli.command()
 @click.option("--postfix", default="_backup", help="added postfix to new table name")
 @click.option("--abstract", is_flag=True, help="make classes abstract")

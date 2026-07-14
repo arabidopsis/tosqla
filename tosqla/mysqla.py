@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import sys
 from datetime import datetime
+from keyword import iskeyword
 from pathlib import Path
 from typing import Any
 from typing import IO
@@ -47,19 +48,20 @@ def get_env() -> Environment:
 
 
 def pascal_case(name: str) -> str:
+    name = NON_WORD.sub("_", name)
+    if name[0] in Number:
+        name = Number[name[0]] + name[1:]
     name = "".join(n[0].upper() + n[1:] for n in name.split("_"))
-    # if name.endswith("s"):
-    #     name = name[:-1]
     name = name.replace(".", "_")
+    if iskeyword(name):
+        name = name + "_"
+
     if name in {"Column", "Table", "Integer"}:
         name = name + "Class"
     return name
 
 
-NAMES = {"class": "class_"}
-
-
-CNAMES = re.compile("[_ -()/]+")
+NON_WORD = re.compile(r"(\W)+")
 
 Number = {
     "1": "one",
@@ -73,6 +75,15 @@ Number = {
     "9": "nine",
     "0": "zero",
 }
+
+
+def column_name(name: str) -> str:
+    cname = NON_WORD.sub("_", name)
+    if iskeyword(cname):
+        cname = cname + "_"
+    if cname[0] in Number:
+        cname = Number[cname[0]] + cname[1:]
+    return cname
 
 
 class ColDict(TypedDict):
@@ -101,14 +112,6 @@ class TableDict(TypedDict):
     with_tablename: bool
 
 
-def column_name(name: str) -> str:
-    cname = CNAMES.sub("_", name)
-    cname = NAMES.get(cname, cname)
-    if cname[0] in Number:
-        cname = Number[cname[0]] + cname[1:]
-    return cname
-
-
 class ModelMaker:
     def __init__(
         self,
@@ -120,8 +123,15 @@ class ModelMaker:
         self.with_tablename = with_tablename
         self.engine = engine
 
-    def column_name(self, name: str) -> str:
-        return column_name(name)
+    def column_name(self, name: str, table_name: str) -> str:
+        ret = column_name(name)
+        if not ret.isidentifier():
+            click.secho(
+                f"Warning: invalid column name {name} -> {ret} in table {table_name}",
+                err=True,
+                fg="yellow",
+            )
+        return ret
 
     def convert_table(
         self,
@@ -257,7 +267,7 @@ class ModelMaker:
                 server_default=server_default,
                 index=c.index,
                 unique=c.unique,
-                column_name=self.column_name(c.name),
+                column_name=self.column_name(c.name, table.name),
             )
 
             if hasattr(c.type, "length"):
@@ -299,7 +309,14 @@ class ModelMaker:
         return data, imports, mysql, pyimports
 
     def pascal_case(self, name: str) -> str:
-        return pascal_case(name)
+        ret = pascal_case(name)
+        if not ret.isidentifier():
+            click.secho(
+                f'Warning: invalid Table name "{name}" -> {ret}',
+                err=True,
+                fg="yellow",
+            )
+        return ret
 
     def run_tables(
         self,
@@ -312,7 +329,6 @@ class ModelMaker:
         imports = set()
         pyimports = set()
         ret: list[str] = []
-        # insp = inspect(engine) if engine else None
         enums_seen: set[tuple[str, str]] = set()
         for table in tables:
             data, i, m, pi = self.convert_table(table)
@@ -389,14 +405,10 @@ class ModelMaker:
         i = Index("fk_index", *(p.name for p in pks), unique=False)
         args.append(i)
         if indexes:
-            # print(indexes)
             for i in indexes:
-                # print(i, dir(i))
                 args.append(
                     Index(i.name, *(c.name for c in i.columns), unique=i.unique),
                 )
-        # args.append(i)
-        # print('HERE', i)
 
         return Table(
             name,

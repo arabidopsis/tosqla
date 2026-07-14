@@ -1,6 +1,6 @@
 {%- for name, enum in enums %}
 {{name}} = {{enum}}
-{%- endfor %}
+{% endfor %}
 # original name {{name}}
 class {{model}}(Base):
     {% if abstract %}__abstract__ = True{% endif -%}
@@ -19,11 +19,11 @@ class {{model}}(Base):
 {%- endfor %}
 
     {% if not indexes %}
-    __table_args__ = dict(mysql_engine='MYISAM',mysql_charset='{{charset}}')
+    __table_args__ = dict(mysql_engine='{{engine}}',mysql_charset='{{charset}}')
     {%- else -%}
     __table_args__ = (
         {%- for c in indexes %}
                     Index("{{ c.name }}",{% for col in c.columns %} "{{col.name}}",  {% endfor %} unique={{c.unique}}),
         {%- endfor %}
-                        ) + (dict(mysql_engine='MYISAM',mysql_charset='{{charset}}'),)
+                        ) + (dict(mysql_engine='{{engine}}',mysql_charset='{{charset}}'),)
     {% endif %}

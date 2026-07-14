@@ -16,6 +16,7 @@ from jinja2 import Environment
 from jinja2 import FileSystemLoader
 from sqlalchemy import BINARY
 from sqlalchemy import BLOB
+from sqlalchemy import Boolean
 from sqlalchemy import CHAR
 from sqlalchemy import Column
 from sqlalchemy import create_engine
@@ -94,6 +95,8 @@ Number = {
 
 
 def column_name(name: str) -> str:
+    if name.isidentifier() and not iskeyword(name):
+        return name
     cname = NON_WORD.sub("_", name.strip())
     if iskeyword(cname):
         cname = cname + "_"
@@ -106,7 +109,6 @@ class ColDict(TypedDict):
     name: str
     type: str
     pytype: str
-    otype: str
     nullable: bool | None
     pk: bool
     server_default: str | None
@@ -162,9 +164,14 @@ class ModelMaker:
         sets: dict[tuple[str, ...], str] = {}
         # indexes = insp.get_indexes(table.name) if insp else []
         indexes = table.indexes
+        options = table.dialect_options["mysql"]
+        charset = "utf8mb4"
+        engine = "InnoDB"
 
-        charset = table.dialect_options["mysql"]["default charset"]
-        engine = table.dialect_options["mysql"]["engine"]
+        if "default charset" in options:
+            charset = options["default charset"]
+        if "engine" in options:
+            engine = options["engine"]
 
         c: Column
         for c in table.columns:
@@ -265,9 +272,14 @@ class ModelMaker:
                 imports.add(name)
             elif isinstance(typ, YEAR):
                 name = typ.__class__.__name__
-                atyp = atyp = f"{name}(4)"
+                atyp = f"{name}(4)"
                 pytype = "int"
                 imports.add(name)
+            elif isinstance(typ, Boolean):
+                # name = typ.__class__.__name__
+                atyp = "Boolean"
+                pytype = "bool"
+                imports.add(atyp)
 
             else:
                 raise RuntimeError(f'unknown field "{table.name}.{c.name}" {c.type}')
@@ -277,7 +289,6 @@ class ModelMaker:
                 name=c.name,
                 type=atyp,
                 pytype=pytype,
-                otype=c.type.__class__.__name__,
                 nullable=c.nullable,
                 pk=c.primary_key,
                 server_default=server_default,

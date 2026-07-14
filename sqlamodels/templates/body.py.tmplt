@@ -1,3 +1,13 @@
+{%- macro index_args(indexes) -%}
+    (
+        {%- for c in indexes %}
+            Index("{{ c.name }}",{% for col in c.columns %} "{{col.name}}",  {% endfor %} unique={{c.unique}}),
+        {%- endfor %}
+    )
+{%- endmacro -%}
+{%- macro table_args(engine, charset) -%}
+    dict(mysql_engine='{{engine}}',mysql_charset='{{charset}}')
+{%- endmacro -%}
 {%- for name, enum in enums %}
 {{name}} = {{enum}}
 {% endfor %}
@@ -17,13 +27,8 @@ class {{model}}(Base):
     {%- if c.pk %}, primary_key=True{% endif %}
     {%- if c.server_default %}, server_default={{c.server_default}}{% endif %})
 {%- endfor %}
-
-    {% if not indexes %}
-    __table_args__ = dict(mysql_engine='{{engine}}',mysql_charset='{{charset}}')
-    {%- else -%}
-    __table_args__ = (
-        {%- for c in indexes %}
-                    Index("{{ c.name }}",{% for col in c.columns %} "{{col.name}}",  {% endfor %} unique={{c.unique}}),
-        {%- endfor %}
-                        ) + (dict(mysql_engine='{{engine}}',mysql_charset='{{charset}}'),)
+    {% if indexes %}
+    __table_args__ = {{ index_args(indexes) }} + ({{ table_args(engine, charset) }},)
+    {% else %}
+    __table_args__ = {{ table_args(engine, charset) }}
     {% endif %}

@@ -532,6 +532,8 @@ def models(
     # click.secho(f"# connecting to {host}", err=True)
     if abstract:
         without_tablename = True
+    if not host.startswith("mysql"):
+        without_table_args = True
     ttables = connect_mysql(host, tables)
     ModelMaker(
         env=get_env(),
@@ -571,6 +573,8 @@ def backups(
     if abstract:
         without_tablename = True
     ttables = connect_mysql(host, tables)
+    if not host.startswith("mysql"):
+        without_table_args = True
     mm = ModelMaker(
         env=get_env(),
         engine=mysql_engine,

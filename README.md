@@ -1,4 +1,4 @@
-# Generate Sqlalchemy Models from Database Tables
+# Generate Sqlalchemy `DeclarativeBase` Models from Database Tables
 
 install with `uv tool install https://github.com/arabidopsis/sqlamodels.git`
 

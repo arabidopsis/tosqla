@@ -7,3 +7,6 @@ This gives a commandline executable `sqlamodels`.
 run as:
 
 `sqlamodels models -o models.py mysql://{user}:{password}@localhost/database`
+
+
+(Works with `sqlite:///` tables too.)

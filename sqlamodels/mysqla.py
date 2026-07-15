@@ -128,6 +128,7 @@ class TableDict(TypedDict):
     indexes: set[Index]
     abstract: bool
     with_tablename: bool
+    tableargs: bool
 
 
 class ModelMaker:
@@ -136,10 +137,12 @@ class ModelMaker:
         env: Environment,
         with_tablename: bool = False,
         engine: str | None = None,
+        table_args: bool = True,
     ) -> None:
         self.env = env
         self.with_tablename = with_tablename
         self.engine = engine
+        self.table_args = table_args
 
     def column_name(self, name: str, table_name: str) -> str:
         ret = column_name(name)
@@ -331,6 +334,7 @@ class ModelMaker:
             indexes=indexes,
             abstract=False,
             with_tablename=True,
+            tableargs=self.table_args,
         )
 
         return data, imports, mysql, pyimports
@@ -501,6 +505,12 @@ def shared_options(f):
         is_flag=True,
         help="don't add __tablename__",
     )(f)
+    f = click.option(
+        "-y",
+        "--without-table-args",
+        is_flag=True,
+        help="don't add __table_args__",
+    )(f)
     return f
 
 
@@ -515,6 +525,7 @@ def models(
     mysql_engine: str | None,
     tables: Sequence[str],
     without_tablename: bool,
+    without_table_args: bool,
 ):
     """Render tables into sqlalchemy DeclarativeBase classes."""
 
@@ -526,6 +537,7 @@ def models(
         env=get_env(),
         with_tablename=not without_tablename,
         engine=mysql_engine,
+        table_args=not without_table_args,
     ).run_tables(
         ttables,
         out=out,
@@ -553,6 +565,7 @@ def backups(
     abstract: bool,
     without_tablename: bool,
     tables: Sequence[str],
+    without_table_args: bool,
 ):
     """Make a DeclarativeBase table that's a "backup" of another."""
     if abstract:
@@ -562,6 +575,7 @@ def backups(
         env=get_env(),
         engine=mysql_engine,
         with_tablename=not without_tablename,
+        table_args=not without_table_args,
     )
     if not name:
         name = "{}_backup"

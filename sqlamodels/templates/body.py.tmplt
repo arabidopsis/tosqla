@@ -11,7 +11,6 @@
 {%- for name, enum in enums %}
 {{name}} = {{enum}}
 {% endfor %}
-# original name {{name}}
 class {{model}}(Base):
     {% if abstract %}__abstract__ = True{% endif -%}
     {% if with_tablename %}__tablename__ = "{{name}}"{% endif -%}

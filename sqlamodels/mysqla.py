@@ -423,13 +423,19 @@ class ModelMaker:
         pks = [c.copy() for c in pks]
         for pk in pks:
             pk.primary_key = False
-
+        o = pkname
         if pkname in names:
             while pkname in names:
                 pkname = pkname + "_"
+        if o != pkname:
+            click.secho(
+                f"Warning: table {table.name} already has a column named {o}, using {pkname} instead",
+                err=True,
+                fg="yellow",
+            )
 
         args: list[Column[Any] | Index] = pks + cols  # type: ignore
-        i = Index("fk_index", *(p.name for p in pks), unique=False)
+        i = Index("fk_" + name, *(p.name for p in pks), unique=False)
         args.append(i)
         if indexes:
             for i in indexes:
@@ -474,26 +480,32 @@ def cli():
     pass
 
 
-def mysqlengine_option(f):
+def shared_options(f):
     """Add an --engine option to a click command."""
-    return click.option(
+    f = click.option(
         "--engine",
         "mysql_engine",
-        help="MySQL engine to use for tables",
+        help="mysql/sqlite engine to use for tables",
     )(f)
+    f = click.option(
+        "-o",
+        "--out",
+        type=click.File("w"),
+        default=sys.stdout,
+        help="output file or stdout",
+    )(f)
+    f = click.option("--abstract", is_flag=True, help="make classes abstract")(f)
+    f = click.option(
+        "-x",
+        "--without-tablename",
+        is_flag=True,
+        help="don't add __tablename__",
+    )(f)
+    return f
 
 
 @cli.command()
-@click.option("--abstract", is_flag=True, help="make classes abstract")
-@click.option("-x", "--without-tablename", is_flag=True, help="don't add __tablename__")
-@click.option(
-    "-o",
-    "--out",
-    type=click.File("w"),
-    default=sys.stdout,
-    help="output file or stdout",
-)
-@mysqlengine_option
+@shared_options
 @click.argument("host", required=True)
 @click.argument("tables", nargs=-1)
 def models(
@@ -504,7 +516,7 @@ def models(
     tables: Sequence[str],
     without_tablename: bool,
 ):
-    """Render tables into sqlalchemy.ext.declarative classes."""
+    """Render tables into sqlalchemy DeclarativeBase classes."""
 
     # click.secho(f"# connecting to {host}", err=True)
     if abstract:
@@ -522,36 +534,39 @@ def models(
 
 
 @cli.command()
-@click.option("--postfix", default="_backup", help="added postfix to new table name")
-@click.option("--abstract", is_flag=True, help="make classes abstract")
-@mysqlengine_option
 @click.option(
-    "-o",
-    "--out",
-    type=click.File("w"),
-    default=sys.stdout,
-    help="output file or stdout",
+    "--name",
+    default="{}_backup",
+    help="format for new table name, use {} for original table name",
+    show_default=True,
 )
 @click.option("--pk", default="id", help="name of new id column", show_default=True)
+@shared_options
 @click.argument("host", required=True)
 @click.argument("tables", nargs=-1)
 def backups(
     host: str,
-    postfix: str | None,
+    name: str | None,
     out: IO[str],
     pk: str,
     mysql_engine: str | None,
     abstract: bool,
+    without_tablename: bool,
     tables: Sequence[str],
 ):
-    """Make a table that's a "backup" of another."""
-
+    """Make a DeclarativeBase table that's a "backup" of another."""
+    if abstract:
+        without_tablename = True
     ttables = connect_mysql(host, tables)
-    mm = ModelMaker(env=get_env(), engine=mysql_engine)
-    if postfix is None:
-        postfix = ""
+    mm = ModelMaker(
+        env=get_env(),
+        engine=mysql_engine,
+        with_tablename=not without_tablename,
+    )
+    if not name:
+        name = "{}_backup"
     # indexes = [insp.get_indexes(t.name) for t in tables]
-    ttables = [mm.mkcopy(t, t.name + postfix, t.metadata, pk) for t in ttables]
+    ttables = [mm.mkcopy(t, name.format(t.name), t.metadata, pk) for t in ttables]
     # print(indexes)
 
     mm.run_tables(ttables, out=out, abstract=abstract)

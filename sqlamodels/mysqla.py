@@ -480,6 +480,7 @@ def connect_mysql(host: str, tables: Sequence[str] | None = None) -> list[Table]
 
 
 @click.group()
+@click.version_option()
 def cli():
     pass
 

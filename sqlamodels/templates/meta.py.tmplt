@@ -17,6 +17,7 @@ class DataType(Enum):
     FLOAT = "FLOAT"
     BLOB = "BLOB"
     DATETIME = "DATETIME"
+    DATE = "DATE"
 
 @dataclass
 class ColumnMetadata:
@@ -133,6 +134,13 @@ class {{class_name}}:
                     value = datetime.fromisoformat(str(value))
                 except (ValueError, TypeError):
                     return False, f"Expected datetime, got {value}", None
+        elif col.data_type == DataType.DATE:
+            from datetime import date
+            if not isinstance(value, date):
+                try:
+                    value = date.fromisoformat(str(value))
+                except (ValueError, TypeError):
+                    return False, f"Expected date, got {value}", None
         elif col.data_type == DataType.BLOB:
             if not isinstance(value, (bytes, bytearray)):
                 value = bytes(str(value), encoding='utf-8')

@@ -21,11 +21,12 @@ class DataType(Enum):
     STRING = "STRING"
     ENUM = "ENUM"
     DECIMAL = "DECIMAL"
+    FLOAT = "FLOAT"
     BLOB = "BLOB"
 
 
 class ColumnMetadata:
-    """Metadata for a single column in SequenceInventoryAll."""
+    """Metadata for a single column."""
 
     def __init__(
         self,
@@ -149,6 +150,8 @@ def generate_schema_from_model(
                 data_type = DataType.ENUM
             else:
                 data_type = DataType.STRING
+        elif python_type is float:
+            data_type = DataType.FLOAT
         else:
             # Default to STRING for unknown types
             data_type = DataType.STRING
@@ -394,7 +397,6 @@ class DynamicSchema:
             "from __future__ import annotations",
             "",
             "from dataclasses import dataclass, field",
-            "from typing import Optional",
             "",
             "",
             "@dataclass",
@@ -441,13 +443,15 @@ class DynamicSchema:
         """Generate type hint for a column."""
         if col.data_type.value == "INTEGER":
             base_type = "int"
-        elif col.data_type.value == "STRING":
+        elif col.data_type.value in {"DECIMAL", "FLOAT"}:
+            base_type = "float"
+        elif col.data_type.value in {"STRING", "ENUM"}:
             base_type = "str"
         else:
-            base_type = "str"
+            base_type = "bytes"
 
         if col.nullable:
-            return f"Optional[{base_type}]"
+            return f"{base_type} | None"
         return base_type
 
     def _get_default_value(self, col: ColumnMetadata) -> str | None:
@@ -505,6 +509,7 @@ class DynamicSchema:
             '    STRING = "STRING"',
             '    ENUM = "ENUM"',
             '    DECIMAL = "DECIMAL"',
+            '    FLOAT = "FLOAT"',
             '    BLOB = "BLOB"',
             "",
             "",

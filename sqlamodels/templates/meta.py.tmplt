@@ -1,0 +1,145 @@
+# Auto-generated schema class from SQLAlchemy model by sqlamodels
+from __future__ import annotations
+
+from dataclasses import dataclass
+from dataclasses import field
+from enum import Enum
+from typing import Any
+
+
+class DataType(Enum):
+    """Column data types."""
+
+    INTEGER = "INTEGER"
+    STRING = "STRING"
+    ENUM = "ENUM"
+    DECIMAL = "DECIMAL"
+    FLOAT = "FLOAT"
+    BLOB = "BLOB"
+    DATETIME = "DATETIME"
+
+@dataclass
+class ColumnMetadata:
+    """Metadata for a single column."""
+
+    name: str
+    data_type: DataType
+    nullable: bool = True
+    unique: bool = False
+    indexed: bool = False
+    primary_key: bool = False
+    max_length: int = 0
+    enum_values: list[str] | None = None
+    default: Any = None
+
+@dataclass
+class {{class_name}}:
+    """Metadata for the {{class_name}} table."""
+    {% for col in schema.get_columns() %}
+    {{col.name}}: ColumnMetadata
+    {%- endfor %}
+    _col_dict: dict[str, ColumnMetadata] = field(init=False, repr=False)
+
+    def __post_init__(self):
+        """Ensure that all columns are initialized."""
+        self._col_dict = {col.name: col for col in self.get_columns()}
+
+    @classmethod
+    def create(cls) -> {{class_name}}:
+        """Create an instance of {{class_name}} with column metadata."""
+        return cls(
+            {% for col in schema.get_columns() %}
+            {{col.name}}=ColumnMetadata(
+                name="{{col.name}}",
+                data_type=DataType.{{col.data_type.name}},
+                nullable={{col.nullable}},
+                unique={{col.unique}},
+                indexed={{col.indexed}},
+                primary_key={{col.primary_key}},
+                max_length={{col.max_length}},
+                enum_values={{col.enum_values}},
+                default={{col.default}}
+            ),
+            {%- endfor %}
+        )
+
+    def get_columns(self) -> list[ColumnMetadata]:
+        """Get list of all columns in order."""
+        return [
+            {% for col in schema.get_columns() %}
+            self.{{col.name}},
+            {%- endfor %}
+        ]
+    def get_fields(self) -> list[str]:
+        """Get list of all columns in order."""
+        return [
+            {% for col in schema.get_columns() %}
+            "{{col.name}}",
+            {%- endfor %}
+        ]
+    def get_column_by_name(self, name: str) -> ColumnMetadata | None:
+        """Get column metadata by name."""
+        return self._col_dict.get(name, None)
+
+    def get_required_columns(self) -> list[ColumnMetadata]:
+        """Get non-nullable columns."""
+        return [col for col in self.get_columns() if not col.nullable]
+
+    def get_nullable_columns(self) -> list[ColumnMetadata]:
+        """Get nullable columns."""
+        return [col for col in self.get_columns() if col.nullable]
+
+    def get_unique_columns(self) -> list[ColumnMetadata]:
+        """Get columns with unique constraint."""
+        return [col for col in self.get_columns() if col.unique]
+
+    def validate_value(self, column_name: str, value: Any) -> tuple[bool, str, Any]:
+        """Validate a value for a column.
+
+        Args:
+            column_name: Column name
+            value: Value to validate
+
+        Returns:
+            Tuple of (is_valid, error_message, validated_value)
+        """
+        col = self.get_column_by_name(column_name)
+        if not col:
+            return False, f"Column '{column_name}' not found in schema", None
+
+        # Type check
+        if col.data_type == DataType.STRING:
+            if not isinstance(value, str):
+                return False, f"Expected string, got {type(value).__name__}", None
+            if col.max_length and len(value) > col.max_length:
+                return False, f"String exceeds max length of {col.max_length}", None
+        elif col.data_type == DataType.INTEGER:
+            try:
+                value = int(value) if isinstance(value, str) else value
+            except (ValueError, TypeError):
+                return False, f"Expected integer, got {type(value).__name__}", None
+        elif col.data_type == DataType.DECIMAL or col.data_type == DataType.FLOAT:
+            try:
+                value = float(value) if isinstance(value, str) else value
+            except (ValueError, TypeError):
+                return False, f"Expected decimal/float, got {type(value).__name__}", None
+        elif col.data_type == DataType.ENUM:
+            if col.enum_values and value not in col.enum_values:
+                return False, f"Value must be one of {col.enum_values}", None
+        elif col.data_type == DataType.DATETIME:
+            from datetime import datetime
+            if not isinstance(value, datetime):
+                try:
+                    value = datetime.fromisoformat(str(value))
+                except (ValueError, TypeError):
+                    return False, f"Expected datetime, got {value}", None
+        elif col.data_type == DataType.BLOB:
+            if not isinstance(value, (bytes, bytearray)):
+                value = bytes(str(value), encoding='utf-8')
+
+        return True, '', value
+
+
+{% if singleton %}
+schema = {{class_name}}.create()
+{%- endif %}

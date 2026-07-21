@@ -489,6 +489,7 @@ class DynamicSchema:
     def _generate_schema_code_string(self, schema_class_name: str) -> str:
         """Generate the complete schema class code."""
         lines = [
+            "# Auto-generated schema class from SQLAlchemy model by sqlamodels",
             "from __future__ import annotations",
             "",
             "from dataclasses import dataclass",

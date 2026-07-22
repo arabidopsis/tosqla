@@ -6,6 +6,12 @@ import click
 
 from .cli import cli
 
+EXPLAIN = """
+This error might be due to the fact that the module imports more than
+sqlalchemy. i.e. is not a simple generated output of `sqlamodels models` command.
+Try installing `sqlamodels` in the same environment where the module is located and run this command again.
+"""
+
 
 @cli.command(name="schema")
 @click.option(
@@ -34,28 +40,63 @@ def schema_cmd(
                      (e.g., 'anigozanthos.models.SequenceInventoryAll')
     """
     import sys
+    from importlib import import_module
+    from sqlalchemy.exc import NoInspectionAvailable
+    from sqlalchemy.orm import DeclarativeBase
     from .schema import DynamicSchema
     from .mysqla import get_env
 
     sys.path.insert(0, ".")  # Ensure current directory is in path
     # Dynamically import the model class
     module_name, class_name = model_class.rsplit(".", 1)
-    module = __import__(module_name, fromlist=[class_name])
-    model_cls = getattr(module, class_name)
+    try:
+        module = import_module(module_name)
 
-    # Generate schema
-    schema = DynamicSchema.from_model(model_cls)
-
-    txt = (
-        get_env()
-        .get_template("meta.py.tmplt")
-        .render(
-            schema=schema,
-            class_name=f"{class_name}Schema",
-            singleton=not no_singleton,
+    except ImportError as e:
+        click.secho(
+            f"Error importing {module_name}: {e} ({EXPLAIN})",
+            err=True,
+            fg="red",
         )
-    )
-    if out is None:
-        click.echo(txt)
-    else:
-        out.write(txt)
+        raise click.Abort()
+    model_cls = getattr(module, class_name, None)
+    if model_cls is None:
+        click.secho(
+            f"Error: {class_name} is not a valid class of module {module_name}",
+            err=True,
+            fg="red",
+        )
+        raise click.Abort()
+    if not isinstance(model_cls, type) or not issubclass(model_cls, DeclarativeBase):
+        click.secho(
+            f"Error: {class_name} is not a subclass of DeclarativeBase in module {module_name}",
+            err=True,
+            fg="red",
+        )
+        raise click.Abort()
+    # Generate schema
+    try:
+        schema = DynamicSchema.from_model(model_cls)
+
+        txt = (
+            get_env()
+            .get_template("meta.py.tmplt")
+            .render(
+                schema=schema,
+                class_name=f"{class_name}Schema",
+                singleton=not no_singleton,
+            )
+        )
+        if out is None:
+            click.echo(txt)
+        else:
+            out.write(txt)
+        click.secho(
+            f"Schema code for {model_class} generated successfully.",
+            err=True,
+            fg="green",
+            bold=True,
+        )
+    except NoInspectionAvailable as e:
+        click.secho(f"Error: {e}", err=True, fg="red")
+        raise click.Abort()

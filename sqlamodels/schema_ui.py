@@ -84,6 +84,7 @@ def schema_cmd(
             .render(
                 schema=schema,
                 class_name=f"{class_name}Schema",
+                class_table=class_name,
                 singleton=not no_singleton,
             )
         )

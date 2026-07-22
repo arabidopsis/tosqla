@@ -44,8 +44,16 @@ from sqlalchemy.dialects.mysql import TINYTEXT
 from sqlalchemy.dialects.mysql import YEAR
 
 
+def tolist(alist: list[Any]) -> str:
+    """use double quotes for strings in a list, e.g. for Enum values"""
+    v = [f'"{v}"' for v in alist]
+    return f"[{', '.join(v)}]"
+
+
 def get_env() -> Environment:
-    return Environment(loader=FileSystemLoader(Path(__file__).parent / "templates"))
+    env = Environment(loader=FileSystemLoader(Path(__file__).parent / "templates"))
+    env.filters["tolist"] = tolist
+    return env
 
 
 def pascal_case(name: str) -> str:

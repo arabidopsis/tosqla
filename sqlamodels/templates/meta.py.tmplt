@@ -19,6 +19,7 @@ class DataType(Enum):
     DATETIME = "DATETIME"
     DATE = "DATE"
 
+
 @dataclass
 class ColumnMetadata:
     """Metadata for a single column."""
@@ -33,10 +34,11 @@ class ColumnMetadata:
     enum_values: list[str] | None = None
     default: Any = None
 
+
 @dataclass
 class {{class_name}}:
-    """Metadata for the {{class_name}} table."""
-    {% for col in schema.get_columns() %}
+    """Metadata for the {{class_table}} table."""
+{% for col in schema.get_columns() %}
     {{col.name}}: ColumnMetadata
     {%- endfor %}
     _col_dict: dict[str, ColumnMetadata] = field(init=False, repr=False)
@@ -49,7 +51,7 @@ class {{class_name}}:
     def create(cls) -> {{class_name}}:
         """Create an instance of {{class_name}} with column metadata."""
         return cls(
-            {% for col in schema.get_columns() %}
+            {%- for col in schema.get_columns() %}
             {{col.name}}=ColumnMetadata(
                 name="{{col.name}}",
                 data_type=DataType.{{col.data_type.name}},
@@ -58,8 +60,8 @@ class {{class_name}}:
                 indexed={{col.indexed}},
                 primary_key={{col.primary_key}},
                 max_length={{col.max_length}},
-                enum_values={{col.enum_values}},
-                default={{col.default}}
+                enum_values={{col.enum_values|tolist}},
+                default={{col.default}},
             ),
             {%- endfor %}
         )
@@ -67,17 +69,19 @@ class {{class_name}}:
     def get_columns(self) -> list[ColumnMetadata]:
         """Get list of all columns in order."""
         return [
-            {% for col in schema.get_columns() %}
+            {%- for col in schema.get_columns() %}
             self.{{col.name}},
             {%- endfor %}
         ]
+
     def get_fields(self) -> list[str]:
         """Get list of all columns in order."""
         return [
-            {% for col in schema.get_columns() %}
+            {%- for col in schema.get_columns() %}
             "{{col.name}}",
             {%- endfor %}
         ]
+
     def get_column_by_name(self, name: str) -> ColumnMetadata | None:
         """Get column metadata by name."""
         return self._col_dict.get(name, None)
@@ -123,12 +127,17 @@ class {{class_name}}:
             try:
                 value = float(value) if isinstance(value, str) else value
             except (ValueError, TypeError):
-                return False, f"Expected decimal/float, got {type(value).__name__}", None
+                return (
+                    False,
+                    f"Expected decimal/float, got {type(value).__name__}",
+                    None,
+                )
         elif col.data_type == DataType.ENUM:
             if col.enum_values and value not in col.enum_values:
                 return False, f"Value must be one of {col.enum_values}", None
         elif col.data_type == DataType.DATETIME:
             from datetime import datetime
+
             if not isinstance(value, datetime):
                 try:
                     value = datetime.fromisoformat(str(value))
@@ -136,6 +145,7 @@ class {{class_name}}:
                     return False, f"Expected datetime, got {value}", None
         elif col.data_type == DataType.DATE:
             from datetime import date
+
             if not isinstance(value, date):
                 try:
                     value = date.fromisoformat(str(value))
@@ -143,11 +153,11 @@ class {{class_name}}:
                     return False, f"Expected date, got {value}", None
         elif col.data_type == DataType.BLOB:
             if not isinstance(value, (bytes, bytearray)):
-                value = bytes(str(value), encoding='utf-8')
+                value = bytes(str(value), encoding="utf-8")
 
-        return True, '', value
+        return True, "", value
 
 
-{% if singleton %}
+{% if singleton -%}
 schema = {{class_name}}.create()
 {%- endif %}

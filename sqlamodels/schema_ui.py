@@ -25,7 +25,7 @@ Try installing `sqlamodels` in the same environment where the module is located 
     "--no-singleton",
     is_flag=True,
     default=False,
-    help="Do not create a singleton instance of the schema",
+    help="Do not create a singleton instances of the schema",
 )
 @click.option(
     "--module",
@@ -39,11 +39,13 @@ def schema_cmd(
     out: IO[str] | None,
     no_singleton: bool = False,
 ) -> None:
-    """Generate schema code for a given SQLAlchemy model class.
+    """Generate schema code for given SQLAlchemy model classes.
 
     Args:
         model_classes: Fully qualified names of the SQLAlchemy model classes
-                       (e.g., 'anigozanthos.models.SequenceInventoryAll')
+                       (e.g., 'anigozanthos.models.SequenceInventoryAll').
+                       *OR* use the --module option to specify a module to introspect.
+                       and just provide the class names (e.g., 'SequenceInventoryAll').
     """
     import sys
     from importlib import import_module

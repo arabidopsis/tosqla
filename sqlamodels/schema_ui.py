@@ -27,17 +27,23 @@ Try installing `sqlamodels` in the same environment where the module is located 
     default=False,
     help="Do not create a singleton instance of the schema",
 )
-@click.argument("model_class", type=str)
+@click.option(
+    "--module",
+    "introspect_module",
+    help="python module to introspect",
+)
+@click.argument("model_classes", type=str, nargs=-1, required=True)
 def schema_cmd(
-    model_class: str,
+    model_classes: tuple[str, ...],
+    introspect_module: str | None,
     out: IO[str] | None,
     no_singleton: bool = False,
 ) -> None:
     """Generate schema code for a given SQLAlchemy model class.
 
     Args:
-        model_class: Fully qualified name of the SQLAlchemy model class
-                     (e.g., 'anigozanthos.models.SequenceInventoryAll')
+        model_classes: Fully qualified names of the SQLAlchemy model classes
+                       (e.g., 'anigozanthos.models.SequenceInventoryAll')
     """
     import sys
     from importlib import import_module
@@ -47,44 +53,61 @@ def schema_cmd(
     from .mysqla import get_env
 
     sys.path.insert(0, ".")  # Ensure current directory is in path
-    # Dynamically import the model class
-    module_name, class_name = model_class.rsplit(".", 1)
-    try:
-        module = import_module(module_name)
 
-    except ImportError as e:
-        click.secho(
-            f"Error importing {module_name}: {e} ({EXPLAIN})",
-            err=True,
-            fg="red",
-        )
-        raise click.Abort()
-    model_cls = getattr(module, class_name, None)
-    if model_cls is None:
-        click.secho(
-            f"Error: {class_name} is not a valid class of module {module_name}",
-            err=True,
-            fg="red",
-        )
-        raise click.Abort()
-    if not isinstance(model_cls, type) or not issubclass(model_cls, DeclarativeBase):
-        click.secho(
-            f"Error: {class_name} is not a subclass of DeclarativeBase in module {module_name}",
-            err=True,
-            fg="red",
-        )
-        raise click.Abort()
-    # Generate schema
+    def get_modules():
+        ret = []
+        mdict = {}
+        for model_class in model_classes:
+            # Dynamically import the model class
+            if introspect_module:
+                module_name, class_name = introspect_module, model_class
+            else:
+                module_name, class_name = model_class.rsplit(".", 1)
+            try:
+                if module_name in mdict:
+                    module = mdict[module_name]
+                else:
+                    module = import_module(module_name)
+                    mdict[module_name] = module
+            except ImportError as e:
+                click.secho(
+                    f"Error importing {module_name}: {e} ({EXPLAIN})",
+                    err=True,
+                    fg="red",
+                )
+                raise click.Abort()
+            model_cls = getattr(module, class_name, None)
+            if model_cls is None:
+                click.secho(
+                    f"Error: {class_name} is not a valid class of module {module_name}",
+                    err=True,
+                    fg="red",
+                )
+                raise click.Abort()
+            if not isinstance(model_cls, type) or not issubclass(
+                model_cls,
+                DeclarativeBase,
+            ):
+                click.secho(
+                    f"Error: {class_name} is not a subclass of DeclarativeBase in module {module_name}",
+                    err=True,
+                    fg="red",
+                )
+                raise click.Abort()
+            ret.append((class_name, model_cls))
+        return ret
+
     try:
-        schema = DynamicSchema.from_model(model_cls)
+        schemas = [
+            DynamicSchema.from_model(class_name, model_cls)
+            for class_name, model_cls in get_modules()
+        ]
 
         txt = (
             get_env()
             .get_template("meta.py.tmplt")
             .render(
-                schema=schema,
-                class_name=f"{class_name}Schema",
-                class_table=class_name,
+                schemas=schemas,
                 singleton=not no_singleton,
             )
         )
@@ -93,7 +116,7 @@ def schema_cmd(
         else:
             out.write(txt)
         click.secho(
-            f"Schema code for {model_class} generated successfully.",
+            f"Schema code for {', '.join(model_classes)} generated successfully.",
             err=True,
             fg="green",
             bold=True,

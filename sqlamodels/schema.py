@@ -49,18 +49,25 @@ class DynamicSchema:
 
     def __init__(
         self,
+        class_name: str,
         columns: dict[str, ColumnMetadata],
     ):
-        """Initialize schema with columns.
+        """Initialize schema with class name and columns.
 
         Args:
+            class_name: Name of the class
             columns: A dict of name -> ColumnMetadata
         """
+        self.class_name = class_name
         self.columns = columns
         self._column_list: list[ColumnMetadata] | None = None
 
     @classmethod
-    def from_model(cls, model_class: type[DeclarativeBase]) -> DynamicSchema:
+    def from_model(
+        cls,
+        class_name: str,
+        model_class: type[DeclarativeBase],
+    ) -> DynamicSchema:
         """Create schema from SQLAlchemy model class.
 
         Args:
@@ -98,7 +105,7 @@ class DynamicSchema:
                 default=column.default,
             )
 
-        return cls(columns)
+        return cls(class_name=class_name, columns=columns)
 
     def get_columns(self) -> list[ColumnMetadata]:
         """Get list of all columns."""

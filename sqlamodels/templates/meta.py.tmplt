@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
+from dataclasses import fields
 from enum import Enum
 from typing import Any
 
@@ -34,53 +35,22 @@ class ColumnMetadata:
     enum_values: list[str] | None = None
     default: Any = None
 
-
 @dataclass
-class {{class_name}}:
-    """Metadata for the {{class_table}} table."""
-{% for col in schema.get_columns() %}
-    {{col.name}}: ColumnMetadata
-    {%- endfor %}
+class BaseSchema:
+    """Base class for schema metadata."""
     _col_dict: dict[str, ColumnMetadata] = field(init=False, repr=False)
 
     def __post_init__(self):
         """Ensure that all columns are initialized."""
         self._col_dict = {col.name: col for col in self.get_columns()}
 
-    @classmethod
-    def create(cls) -> {{class_name}}:
-        """Create an instance of {{class_name}} with column metadata."""
-        return cls(
-            {%- for col in schema.get_columns() %}
-            {{col.name}}=ColumnMetadata(
-                name="{{col.name}}",
-                data_type=DataType.{{col.data_type.name}},
-                nullable={{col.nullable}},
-                unique={{col.unique}},
-                indexed={{col.indexed}},
-                primary_key={{col.primary_key}},
-                max_length={{col.max_length}},
-                enum_values={{col.enum_values|tolist}},
-                default={{col.default}},
-            ),
-            {%- endfor %}
-        )
-
     def get_columns(self) -> list[ColumnMetadata]:
         """Get list of all columns in order."""
-        return [
-            {%- for col in schema.get_columns() %}
-            self.{{col.name}},
-            {%- endfor %}
-        ]
+        return [getattr(self, f) for f in self.get_fields()]
 
     def get_fields(self) -> list[str]:
         """Get list of all columns in order."""
-        return [
-            {%- for col in schema.get_columns() %}
-            "{{col.name}}",
-            {%- endfor %}
-        ]
+        return [f.name for f in fields(self) if f.init]
 
     def get_column_by_name(self, name: str) -> ColumnMetadata | None:
         """Get column metadata by name."""
@@ -157,7 +127,36 @@ class {{class_name}}:
 
         return True, "", value
 
+{% for schema in schemas %}
+@dataclass
+class {{schema.class_name}}Schema(BaseSchema):
+    """Metadata for the {{schema.class_name}} table."""
+{% for col in schema.get_columns() %}
+    {{col.name}}: ColumnMetadata
+    {%- endfor %}
 
+    @classmethod
+    def create(cls) -> {{schema.class_name}}Schema:
+        """Create an instance of {{schema.class_name}}Schema with column metadata."""
+        return cls(
+            {%- for col in schema.get_columns() %}
+            {{col.name}}=ColumnMetadata(
+                name="{{col.name}}",
+                data_type=DataType.{{col.data_type.name}},
+                nullable={{col.nullable}},
+                unique={{col.unique}},
+                indexed={{col.indexed}},
+                primary_key={{col.primary_key}},
+                max_length={{col.max_length}},
+                enum_values={{col.enum_values|tolist}},
+                default={{col.default}},
+            ),
+            {%- endfor %}
+        )
+
+{% endfor %}
 {% if singleton -%}
-schema = {{class_name}}.create()
+{% for schema in schemas %}
+schema_{{schema.class_name|lower}} = {{schema.class_name}}Schema.create()
+{% endfor%}
 {%- endif %}

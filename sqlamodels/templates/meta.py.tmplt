@@ -6,6 +6,7 @@ from dataclasses import field
 from dataclasses import fields
 from enum import Enum
 from typing import Any
+from typing import Sequence
 
 
 class DataType(Enum):
@@ -106,6 +107,13 @@ class BaseSchema:
         elif col.data_type == DataType.ENUM:
             if col.enum_values and value not in col.enum_values:
                 return False, f"Value must be one of {col.enum_values}", None
+        elif col.data_type == DataType.SET:
+            if isinstance(value, Sequence) and not isinstance(value, str):
+                value = set(value)
+            else:
+                value = set([s.strip() for s in str(value).split(",")])
+            if value - set(col.enum_values or []):
+                return False, f"Value must be a set of {col.enum_values or []}", None
         elif col.data_type == DataType.DATETIME:
             from datetime import datetime
 

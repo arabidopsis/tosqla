@@ -19,6 +19,7 @@ class DataType(Enum):
     BLOB = "BLOB"
     DATETIME = "DATETIME"
     DATE = "DATE"
+    SET = "SET"
 
 
 @dataclass(kw_only=True, slots=True, frozen=True)

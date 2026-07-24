@@ -167,7 +167,7 @@ class DynamicSchema:
 
     @classmethod
     def _get_enum_values(cls, column: Column) -> list[str]:
-        """Get enum values from Enum column type."""
+        """Get enum values from Enum/Set column type."""
         col_type = column.type
         type_name = type(col_type).__name__.upper()
         if not contains(type_name, {"ENUM", "SET"}):

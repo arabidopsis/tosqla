@@ -21,7 +21,7 @@ class DataType(Enum):
     DATE = "DATE"
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(kw_only=True, slots=True, frozen=True)
 class ColumnMetadata:
     """Metadata for a single column."""
 
@@ -128,7 +128,7 @@ class BaseSchema:
         return True, "", value
 
 {% for schema in schemas %}
-@dataclass(slots=True, frozen=True)
+@dataclass(kw_only=True, slots=True, frozen=True)
 class {{schema.class_name}}Schema(BaseSchema):
     """Metadata for the {{schema.class_name}} table."""
 {% for col in schema.get_columns() %}

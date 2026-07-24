@@ -81,7 +81,7 @@ class DynamicSchema:
         mapper: Mapper = inspect(model_class)
 
         columns: dict[str, ColumnMetadata] = {}
-        column: Column
+        column: Column[Any]
 
         for column in mapper.columns:
             col_name = column_name(column.name)
@@ -98,7 +98,7 @@ class DynamicSchema:
                 data_type=data_type,
                 nullable=bool(nullable),
                 unique=unique,
-                indexed=indexed,
+                indexed=bool(indexed),
                 primary_key=primary_key,
                 max_length=max_length,
                 enum_values=enum_values,

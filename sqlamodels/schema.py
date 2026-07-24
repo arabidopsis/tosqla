@@ -170,7 +170,7 @@ class DynamicSchema:
         """Get enum values from Enum column type."""
         col_type = column.type
         type_name = type(col_type).__name__.upper()
-        if type_name not in {"ENUM", "SET"}:
+        if not contains(type_name, {"ENUM", "SET"}):
             return []
 
         # Extract enum values from SQLAlchemy Enum type

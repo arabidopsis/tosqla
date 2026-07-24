@@ -115,10 +115,12 @@ def schema_cmd(
         )
         if out is None:
             click.echo(txt)
+            to = ""
         else:
             out.write(txt)
+            to = f" to {out.name}" if out.name else ""
         click.secho(
-            f"Schema code for {', '.join(model_classes)} generated successfully.",
+            f"Schema code for {', '.join(model_classes)} generated successfully{to}.",
             err=True,
             fg="green",
             bold=True,

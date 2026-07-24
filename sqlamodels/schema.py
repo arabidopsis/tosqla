@@ -26,6 +26,12 @@ class DataType(Enum):
     BLOB = "BLOB"
     DATETIME = "DATETIME"
     DATE = "DATE"
+    SET = "SET"
+
+
+def contains(s: str, possibilities: set[str]) -> bool:
+    """Check if string s contains any of the substrings in possibilities."""
+    return any(substring in s for substring in possibilities)
 
 
 # change these in sqlamodels/templates/meta.py.tmplt as well
@@ -126,21 +132,26 @@ class DynamicSchema:
         col_type = column.type
         type_name = type(col_type).__name__.upper()
 
-        if "STRING" in type_name or "VARCHAR" in type_name:
+        if contains(
+            type_name,
+            {"STRING", "VARCHAR", "TEXT", "CHAR", "NVARCHAR", "CLOB"},
+        ):
             return DataType.STRING
         elif "INT" in type_name:
             return DataType.INTEGER
         elif "ENUM" in type_name:
             return DataType.ENUM
+        elif "SET" in type_name:
+            return DataType.SET
         elif "DECIMAL" in type_name:
             return DataType.DECIMAL
         elif "DATETIME" in type_name:
             return DataType.DATETIME
         elif "DATE" in type_name:
             return DataType.DATE
-        elif "FLOAT" in type_name or "REAL" in type_name or "DOUBLE" in type_name:
+        elif contains(type_name, {"FLOAT", "REAL", "DOUBLE"}):
             return DataType.FLOAT
-        elif "BLOB" in type_name or "BINARY" in type_name or "BYTES" in type_name:
+        elif contains(type_name, {"BLOB", "BINARY", "BYTES"}):
             return DataType.BLOB
         else:
             # Default to string for unknown types
@@ -159,7 +170,7 @@ class DynamicSchema:
         """Get enum values from Enum column type."""
         col_type = column.type
         type_name = type(col_type).__name__.upper()
-        if "ENUM" not in type_name:
+        if type_name not in {"ENUM", "SET"}:
             return []
 
         # Extract enum values from SQLAlchemy Enum type
@@ -167,5 +178,6 @@ class DynamicSchema:
             return list(col_type.enums)  # type: ignore
         elif hasattr(col_type, "enum_class"):
             return [e.value for e in col_type.enum_class]  # type: ignore
-
+        if hasattr(col_type, "values"):
+            return list(col_type.values)  # type: ignore
         return []

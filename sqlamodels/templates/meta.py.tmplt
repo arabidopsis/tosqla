@@ -21,7 +21,7 @@ class DataType(Enum):
     DATE = "DATE"
 
 
-@dataclass
+@dataclass(slots=True, frozen=True)
 class ColumnMetadata:
     """Metadata for a single column."""
 
@@ -35,14 +35,14 @@ class ColumnMetadata:
     enum_values: list[str] | None = None
     default: Any = None
 
-@dataclass
+@dataclass(slots=True, frozen=True)
 class BaseSchema:
     """Base class for schema metadata."""
     _col_dict: dict[str, ColumnMetadata] = field(init=False, repr=False)
 
     def __post_init__(self):
         """Ensure that all columns are initialized."""
-        self._col_dict = {col.name: col for col in self.get_columns()}
+        object.__setattr__(self, "_col_dict", {col.name: col for col in self.get_columns()})
 
     def get_columns(self) -> list[ColumnMetadata]:
         """Get list of all columns in order."""
@@ -128,7 +128,7 @@ class BaseSchema:
         return True, "", value
 
 {% for schema in schemas %}
-@dataclass
+@dataclass(slots=True, frozen=True)
 class {{schema.class_name}}Schema(BaseSchema):
     """Metadata for the {{schema.class_name}} table."""
 {% for col in schema.get_columns() %}

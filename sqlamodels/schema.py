@@ -29,7 +29,7 @@ class DataType(Enum):
 
 
 # change these in sqlamodels/templates/meta.py.tmplt as well
-@dataclass
+@dataclass(slots=True, frozen=True)
 class ColumnMetadata:
     """Metadata for a single column."""
 
